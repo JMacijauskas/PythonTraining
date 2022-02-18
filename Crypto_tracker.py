@@ -1,6 +1,10 @@
 import requests
 import os
 from twilio.rest import Client
+from dotenv import load_dotenv
+
+
+load_dotenv()  # Load .env stored environment variables in root
 
 """
 1. send request
@@ -18,18 +22,23 @@ server
 
 
 class CryptoTracker:
-    def __int__(self):
+    """
+    API to track crypto can be accessed:
+    https://www.cryptocompare.com/cryptopian/api-keys
+    """
+    def __init__(self):
+        self.crypto_api_key = os.getenv('CRYPTO_API_KEY')
         self.currencies = ('USD', 'EUR')
-        self.crypto_api_key = '5ea05436b67f1e6902ebe83660491ac8cff0d1a94a7fea4bd66bd4936fa6f924'
         self.crypto_names = ('BTC', 'ETH', 'XRP')
-        self.crypt_endpoint = 'https://min-api.cryptocompare.com/data/pricemulti?fsyms={}&tsyms={}&api_key={}'
+        self.crypt_endpoint = 'https://min-api.cryptocompare.com/data/pricemulti?fsyms={}&tsyms={}&api_key={}'.format(
+            ','.join(self.currencies),
+            ','.join(self.crypto_names),
+            self.crypto_api_key
+        )
         self.new_data = None
 
     def get_crypto_data(self):
-        use_currency = ','.join(self.currencies)
-        use_crypto = ','.join(self.crypto_names)
-        req_url = self.crypt_endpoint.format(use_currency, use_crypto, self.crypto_api_key)
-        response = requests.get(req_url)
+        response = requests.get(self.crypt_endpoint)
         print(response.json())
         return response.json()
 
@@ -38,28 +47,32 @@ class CryptoTracker:
 
 
 class Sender:
-    def __int__(self):
-        self.account_sid_twill = 'AC9b68bb48726b0d5e8e3312012e4411bc'
-        self.secret_key_twill = 'ebc25372f9e73878a67cced1d3cd35a8'
-        self.num_twill = '+19205202812'
-        self.user_number = '+37062292409'
+    """
+    Twillio API used to send sms can be accessed:
+    https://www.twilio.com/console/projects/summary
+    """
+    def __init__(self):
+        self.account_sid_twill = os.getenv('TWILIO_ACCOUNT_SID')
+        self.secret_key_twill = os.getenv('TWILIO_AUTH_TOKEN')
+        self.num_twill = os.getenv('TWILIO_NUMBER')
+        self.user_number = os.getenv('USER_NUMBER')
         self.message_lim = 1600
+        self.template_sms = ''
 
-    def send(self):
-        account_sid = os.environ['TWILIO_ACCOUNT_SID']
-        auth_token = os.environ['TWILIO_AUTH_TOKEN']
-        client = Client(account_sid, auth_token)
-
+    def sending(self, data):
+        client = Client(self.account_sid_twill, self.secret_key_twill)
+        # TODO: fix issue "HTTP 401 error: Unable to create record: Authenticate"
         message = client.messages.create(
-            body='Hi there',
-            from_='+15017122661',
-            to='+15558675310'
+            body=f'{data}',
+            from_=f'{self.num_twill}',
+            to=f'{self.user_number}'
         )
         print(message.sid)
 
 
 if __name__ == '__main__':
     new_track = CryptoTracker()
-    # print(new_track.currencies)
-    new_track.get_crypto_data()
+    sendin = Sender()
+    new_vals = new_track.get_crypto_data()
+    sendin.sending(new_vals)
 
