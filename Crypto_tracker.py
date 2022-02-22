@@ -2,6 +2,8 @@ import time
 import typing
 import requests
 import os
+
+import twilio.rest
 from twilio.rest import Client
 from dotenv import load_dotenv
 import argparse
@@ -45,7 +47,7 @@ class Alarm(typing.NamedTuple):
         )
 
 
-def parse_args() -> argparse.Namespace:
+def parse_cmd_args() -> argparse.Namespace:
     args_dict = {
         'period': {
             'name1': '-p',
@@ -105,6 +107,7 @@ def parse_args() -> argparse.Namespace:
                 type=args_dict[arg]['type']
             )
     args = parser.parse_args()
+    logging.info(f'Starting with arguments {args}')
     return args
 
 
@@ -114,7 +117,12 @@ class CryptoTracker:
     https://www.cryptocompare.com/cryptopian/api-keys
     """
     def __init__(self, currency_iter: typing.Iterable[str], crypto_coins: typing.Iterable[str], limit: int):
-        self.crypto_api_key = os.getenv('CRYPTO_API_KEY')
+        try:
+            self.crypto_api_key = os.environ['CRYPTO_API_KEY']
+        except KeyError as k_err:
+            logging.error(k_err)
+            logging.warning('Missing required environment variable, check environment variables.')
+
         self.currencies = currency_iter
         self.crypto_names = crypto_coins
         self.crypt_endpoint = 'https://min-api.cryptocompare.com/data/pricemulti?fsyms={}&tsyms={}&api_key={}'.format(
@@ -126,10 +134,15 @@ class CryptoTracker:
         self.threshold = limit
 
     def get_crypto_data(self) -> dict:
-        response = requests.get(self.crypt_endpoint)
-        changed_resp = self.parse_values(response.json())
-        # print(changed_resp)
-        return changed_resp
+        try:
+            response = requests.get(self.crypt_endpoint)
+            changed_resp = self.parse_values(response.json())
+            logging.info('Crypto coin data was received.')
+            logging.debug(changed_resp)
+            return changed_resp
+        except requests.exceptions.HTTPError as http_err:
+            logging.error(http_err)
+            logging.warning('Connection issue has occurred, check connection and try again.')
 
     @staticmethod
     def parse_values(json_data: dict) -> dict:
@@ -149,6 +162,7 @@ class CryptoTracker:
                     evaluation = self.compare(value, coins, currency)
                     if evaluation is not None:
                         alarm_list.append(Alarm(coins, currency, value, evaluation[0], evaluation[1]))
+        logging.debug(f'Detected alarms: {alarm_list}')
         return alarm_list
 
     def compare(self, num: float, coin: str, curr: str) -> tuple[float, float]:
@@ -164,10 +178,15 @@ class Sender:
     https://www.twilio.com/console/projects/summary
     """
     def __init__(self, bool_send):
-        self.account_sid_twill = os.getenv('TWILIO_ACCOUNT_SID')
-        self.secret_key_twill = os.getenv('TWILIO_AUTH_TOKEN')
-        self.num_twill = os.getenv('TWILIO_NUMBER')
-        self.user_number = os.getenv('USER_NUMBER')
+        try:
+            self.account_sid_twill = os.environ['TWILIO_ACCOUNT_SID']
+            self.secret_key_twill = os.environ['TWILIO_AUTH_TOKEN']
+            self.num_twill = os.environ['TWILIO_NUMBER']
+            self.user_number = os.environ['USER_NUMBER']
+        except KeyError as k_err:
+            logging.error(k_err)
+            logging.warning('Missing required environment variable, check environment variables.')
+
         self.message_lim = 1600
         self.template_sms = ''
         self.sms_send = bool_send
@@ -177,14 +196,18 @@ class Sender:
         quants = self.quantify(alarm_str_generator)
         client = Client(self.account_sid_twill, self.secret_key_twill)
         for message in quants:
-            print(message)
+            logging.info(f'Message ready: {message}')
             if self.sms_send:
-                message_sent = client.messages.create(
-                    body=f'{message}',
-                    from_=f'{self.num_twill}',
-                    to=f'{self.user_number}'
-                )
-                print(message_sent.sid)
+                try:
+                    message_sent = client.messages.create(
+                        body=f'{message}',
+                        from_=f'{self.num_twill}',
+                        to=f'{self.user_number}'
+                    )
+                    logging.info(f'SMS was sent with identification code: {message_sent.sid}')
+                except twilio.rest.TwilioException as tw_err:
+                    logging.error(tw_err)
+                    logging.warning('SMS sending was initiated, but failed.')
 
     def quantify(self, alarms: typing.Generator[str, None, None]) -> typing.Generator[str, None, None]:
         full_message = ''
@@ -198,7 +221,9 @@ class Sender:
 
 
 if __name__ == '__main__':
-    arguments = parse_args()
+    logging.basicConfig(level=logging.DEBUG)
+
+    arguments = parse_cmd_args()
     period = arguments.period
 
     new_track = CryptoTracker(arguments.currencies, arguments.crypto, arguments.threshold)
@@ -208,6 +233,6 @@ if __name__ == '__main__':
         alarms_in_list = new_track.check_for_alarms(new_vals)
         if alarms_in_list:
             sendin.sending(alarms_in_list)
-        print(f'wait {period}s')
+        logging.info(f'wait {period}s')
         time.sleep(period)
 
