@@ -45,20 +45,28 @@ class Alarm(NamedTuple):
         )
 
 
+class HelpInfo(NamedTuple):
+    period: str
+    crypto: str
+    currency: str
+    threshold: str
+    sms: str
+
+
 def parse_cmd_args() -> argparse.Namespace:
-    help_info = {
-        'period': 'Time how often requests will be issued, in seconds. (default: %(default)s)',
-        'crypto': 'List of crypto currency short names, that will be tracked. (default: %(default)s)',
-        'currency': 'List of currency short names, that will be used for evaluation. (default: %(default)s)',
-        'threshold': 'Percentage value of threshold for tracking signals. (default: %(default)s)',
-        'sms': 'Whether or not sms notification should be sent. (default: %(default)s)'
-    }
+    help_info = HelpInfo(
+        'Time how often requests will be issued, in seconds. (default: %(default)s)',
+        'List of crypto currency short names, that will be tracked. (default: %(default)s)',
+        'List of currency short names, that will be used for evaluation. (default: %(default)s)',
+        'Percentage value of threshold for tracking signals. (default: %(default)s)',
+        'Whether or not sms notification should be sent. (default: %(default)s)'
+    )
     parser = argparse.ArgumentParser()
-    parser.add_argument('-p', '--period', help=help_info['period'], default=60, type=int)
-    parser.add_argument('-c', '--crypto', help=help_info['crypto'], default=('BTC', 'ETH', 'XRP'), nargs='*')
-    parser.add_argument('-cr', '--currency', help=help_info['currency'], default=('USD', 'EUR'), nargs='*')
-    parser.add_argument('-t', '--threshold', help=help_info['threshold'], default=10, type=float)
-    parser.add_argument('-s', '--sms', help=help_info['sms'], action='store_false')
+    parser.add_argument('-p', '--period', help=help_info.period, default=60, type=int)
+    parser.add_argument('-c', '--crypto', help=help_info.crypto, default=('BTC', 'ETH', 'XRP'), nargs='*')
+    parser.add_argument('-cr', '--currency', help=help_info.currency, default=('USD', 'EUR'), nargs='*')
+    parser.add_argument('-t', '--threshold', help=help_info.threshold, default=10, type=float)
+    parser.add_argument('-s', '--sms', help=help_info.sms, action='store_false')
     args = parser.parse_args()
     logging.info(f'Starting with arguments {args}')
     return args
@@ -87,16 +95,28 @@ class CryptoTracker:
         except requests.exceptions.HTTPError:
             logging.warning('Connection issue has occurred, check connection and try again.')
             return {}
-        changed_resp = self.parse_values(response.json())
-        logging.info('Crypto coin data was received.')
-        logging.debug(changed_resp)
-        return changed_resp
+        try:
+            if 'Response' in response.json().keys():
+                if response.json()['Response'] == "Error":
+                    raise ValueError(f"False URL or it's parameters: {self.crypt_endpoint}")
+        except ValueError as v_err:
+            logging.error(str(v_err))
+            return {}
+        else:
+            changed_resp = self.parse_values(response.json())
+            logging.info('Crypto coin data was received.')
+            logging.debug(changed_resp)
+            print(f"-----------{changed_resp}")
+            return changed_resp
 
     @staticmethod
-    def parse_values(json_data: dict) -> dict:
+    def coin_for_currency_to_coin_value(coins_per_currency: float) -> float:
+        return round(1 / coins_per_currency, 5)
+
+    def parse_values(self, json_data: dict) -> dict:
         for currency in json_data:
             for coin in json_data[currency]:
-                json_data[currency][coin] = round(1 / json_data[currency][coin], 5)
+                json_data[currency][coin] = self.coin_for_currency_to_coin_value(json_data[currency][coin])
         return json_data
 
     def check_for_alarms(self, json_dict: dict) -> list[Alarm]:
@@ -139,18 +159,19 @@ class Sender:
         client = Client(self.account_sid_twill, self.secret_key_twill)
         for message in quants:
             logging.info(f'Message ready: {message}')
-            if self.sms_send:
-                try:
-                    message_sent = client.messages.create(
-                        body=f'{message}',
-                        from_=f'{self.num_twill}',
-                        to=f'{self.user_number}'
-                    )
-                except twilio.rest.TwilioException as tw_err:
-                    logging.error(tw_err)
-                    logging.warning('SMS sending was initiated, but failed.')
-                else:
-                    logging.info(f'SMS was sent with identification code: {message_sent.sid}')
+            if not self.sms_send:
+                continue
+            try:
+                message_sent = client.messages.create(
+                    body=f'{message}',
+                    from_=f'{self.num_twill}',
+                    to=f'{self.user_number}'
+                )
+            except twilio.rest.TwilioException as tw_err:
+                logging.error(tw_err)
+                logging.warning('SMS sending was initiated, but failed.')
+            else:
+                logging.info(f'SMS was sent with identification code: {message_sent.sid}')
 
     def quantify(self, alarms: Generator[str, None, None]) -> Generator[str, None, None]:
         full_message = ''
