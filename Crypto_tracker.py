@@ -106,7 +106,6 @@ class CryptoTracker:
             changed_resp = self.parse_values(response.json())
             logging.info('Crypto coin data was received.')
             logging.debug(changed_resp)
-            print(f"-----------{changed_resp}")
             return changed_resp
 
     @staticmethod
