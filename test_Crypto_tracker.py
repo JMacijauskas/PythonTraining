@@ -64,7 +64,7 @@ class TestCryptotracker(unittest.TestCase):
         with self.assertRaises(TypeError):
             tracker.coin_for_currency_to_coin_value('10')
 
-    def test_get_crypto_data(self):
+    def test_get_crypto_data_positive_path(self):
         """
         Test to see if returned values are as expected
         class: CryptoTracker
@@ -86,18 +86,32 @@ class TestCryptotracker(unittest.TestCase):
         # Testing if function output matches mocked requests.json response
         self.assertDictEqual(resp1, request_mock)
 
-        # Testing if errors raised by get_crypto_data function are also raised
+        # Testing if errors raised by parse_values function are also raised
         tracker.parse_values = MagicMock(side_effect=ValueError('False dictionary'))
         with self.assertRaises(ValueError) as err:
             tracker.get_crypto_data()
         self.assertEqual(str(err.exception), 'False dictionary')
 
-        # Testing if errors raised by requests.get function are handled
+    def test_get_crypto_data_error_path(self):
+        """
+        Testing if errors raised by requests.get function are handled
+        class: CryptoTracker
+        method: get_crypto_data
+        """
+
+        tracker = Crypto_tracker.CryptoTracker([''], [''], 0)
+
         requests.get = MagicMock(side_effect=requests.exceptions.HTTPError())
         resp2 = tracker.get_crypto_data()
         self.assertEqual(resp2, {})
 
-        # Testing if responses with error indication are handled
+    def test_get_crypto_data_error_path2(self):
+        """
+        Testing if responses with error indication are handled
+        class: CryptoTracker
+        method: get_crypto_data
+        """
+
         request_mock = {
             'Response': 'Error',
             'Message': 'fsyms is a required param.',
@@ -106,6 +120,9 @@ class TestCryptotracker(unittest.TestCase):
             'RateLimit': {},
             'Data': {},
             'ParamWithError': 'fsyms'}
+
+        tracker = Crypto_tracker.CryptoTracker([''], [''], 0)
+        mock = MagicMock()
         mock().json.return_value = request_mock
         requests.get = mock
         tracker.parse_values = requests.get().json
@@ -130,9 +147,9 @@ class TestCryptotracker(unittest.TestCase):
             'USD': {'BTC': 38804.8118, 'ETH': 2702.7027, 'XRP': 0.73368}
         }
 
-    def test_compare(self):
+    def test_compare_initial(self):
         """
-        Test to see if Alarms are correctly calculating change of value
+        Test to see if Alarms are correctly calculating change of each value with sample imput dict
         class: CryptoTracker
         method: compare
         """
@@ -140,10 +157,12 @@ class TestCryptotracker(unittest.TestCase):
             'EUR': {'BTC': 35000.035, 'ETH': 2000.5, 'XRP': 0.60001},
             'USD': {'BTC': 40000.90001, 'ETH': 2700, 'XRP': 0.75}
         }
-        # Testing regular output correctness with sample imput dict
+
+        mock_input = {'num': 34188.03419, 'coin': 'BTC', 'curr': 'EUR'}
+
         tracker = Crypto_tracker.CryptoTracker([''], [''], 10)
         tracker.init_data = mock_init_data
-        mock_input = {'num': 34188.03419, 'coin': 'BTC', 'curr': 'EUR'}
+
         output_flag, ref_val, change = tracker.compare(mock_input['num'], mock_input['coin'], mock_input['curr'])
         self.assertFalse(output_flag)
         self.assertIsInstance(ref_val, float)
@@ -151,43 +170,83 @@ class TestCryptotracker(unittest.TestCase):
         self.assertIsInstance(change, float)
         self.assertEqual(change, -2.32)
 
-        # Testing first (bool) and second (float) output evaluation correctness with one sample value in dict
-        test_sample_ref = mock_init_data['EUR']['BTC']
-        thick_change = 0.2
-        init_change_perc = -20
-        tracker.threshold = 15.2
-        for thick in range(0, 200):
-            change_perc = round(init_change_perc + thick_change * thick, 3)
+    def test_compare_output1_and_output3_values(self):
+        """
+        Testing first (bool) and second (float) output evaluation correctness with one sample value in dict
+        class: CryptoTracker
+        method: compare
+        """
+
+        mock_init_data = {
+            'EUR': {'BTC': 35000.035, 'ETH': 2000.5, 'XRP': 0.60001},
+            'USD': {'BTC': 40000.90001, 'ETH': 2700, 'XRP': 0.75}
+        }
+
+        tracker = Crypto_tracker.CryptoTracker([''], [''], 0)
+        tracker.init_data = mock_init_data
+
+        curr = 'EUR'
+        coin = 'BTC'
+        test_threshold = 15.2
+
+        test_sample_ref = mock_init_data[curr][coin]
+        tracker.threshold = test_threshold
+
+        for thick in range(-200, 200, 4):  # 200 / 10 = 20% change
+            change_perc = thick / 10
             test_sample = round(test_sample_ref * (1 + change_perc / 100), 5)
-            output_flag, ref_val, change = tracker.compare(test_sample, 'BTC', 'EUR')
+            output_flag, ref_val, change = tracker.compare(test_sample, coin, curr)
             self.assertEqual(change, change_perc)
-            if 29680.02968 >= test_sample or 40320.04032 <= test_sample:
+            if abs(change_perc) >= test_threshold:
                 self.assertTrue(output_flag)
             else:
                 self.assertFalse(output_flag)
 
-        # Testing first (bool) and second (float) output evaluation correctness with other sample value in dict
-        test_sample_ref = mock_init_data['USD']['XRP']
-        thick_change = 0.4
-        init_change_perc = -40
-        tracker.threshold = 9.2
-        for thick in range(0, 200):
-            change_perc = round(init_change_perc + thick_change * thick, 3)
+        # Same test with other sample value in dict
+        curr = 'USD'
+        coin = 'XRP'
+        test_threshold = 12
+
+        test_sample_ref = mock_init_data[curr][coin]
+        tracker.threshold = test_threshold
+
+        for thick in range(-200, 200, 2):   # 200 / 10 = 20% change
+            change_perc = thick / 10
             test_sample = round(test_sample_ref * (1 + change_perc / 100), 5)
-            output_flag, ref_val, change = tracker.compare(test_sample, 'XRP', 'USD')
+            output_flag, ref_val, change = tracker.compare(test_sample, coin, curr)
             self.assertEqual(change, change_perc)
-            if 0.681 >= test_sample or 0.819 <= test_sample:
+            if abs(change_perc) >= test_threshold:
                 self.assertTrue(output_flag)
             else:
                 self.assertFalse(output_flag)
+
+    def test_compare_init_data_access(self):
+        """
+        Testing first (bool) and second (float) output evaluation correctness with one sample value in dict
+        class: CryptoTracker
+        method: compare
+        """
+
+        mock_init_data = {
+            'EUR': {'BTC': 0, 'ETH': 0, 'XRP': 0},
+            'USD': {'lot': 0, 'eeth': 0, 'XeRP': 0},
+            'RUP': {'all': 0, 'any': 0, 'XX': 0}
+        }
+
+        tracker = Crypto_tracker.CryptoTracker([''], [''], 0)
 
         mock = MagicMock()
-        mock.get.return_value = 1
+        mock_tier2 = MagicMock()
+        mock_tier2.__getitem__.return_value = 777
+        mock.__getitem__.return_value = mock_tier2
+
         tracker.init_data = mock
+
         for curr in mock_init_data:
-            for coin in curr:
-                tracker.compare(2, 'ETH', 'USD')
-        self.assertEqual(mock.call_count, 7)
+            for coin in mock_init_data[curr]:
+                c, ref, ch = tracker.compare(2, coin, curr)
+                self.assertEqual(ref, 777)
+        self.assertEqual(len(mock_tier2.mock_calls), 9)
 
 
 if __name__ == '__main__':
