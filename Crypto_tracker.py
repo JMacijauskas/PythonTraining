@@ -95,13 +95,8 @@ class CryptoTracker:
         except requests.exceptions.HTTPError:
             logging.warning('Connection issue has occurred, check connection and try again.')
             return {}
-        try:
-            if 'Response' in response.json().keys():
-                if response.json()['Response'] == "Error":
-                    raise ValueError(f"False URL or it's parameters: {self.crypt_endpoint}")
-        except ValueError as v_err:
-            logging.error(str(v_err))
-            return {}
+        if response.json().get('Response') == "Error":
+            raise ValueError(f"False URL or it's parameters: {self.crypt_endpoint}")
         else:
             changed_resp = self.parse_values(response.json())
             logging.info('Crypto coin data was received.')
