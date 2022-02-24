@@ -136,16 +136,157 @@ class TestCryptotracker(unittest.TestCase):
             f"False URL or it's parameters: this_key_is_not_here"
         )
 
-    def test_check_for_alarms(self):
+    def test_check_for_alarms_initial_run(self):
         """
-        Test to see if Alarms are captured as expected
+        Test to see if first iteration of this function saves values as initial values
         class: CryptoTracker
         method: check_for_alarms
         """
-        request_mock = {
+        mock_dict = {
             'EUR': {'BTC': 34188.03419, 'ETH': 2381.51941, 'XRP': 0.64641},
             'USD': {'BTC': 38804.8118, 'ETH': 2702.7027, 'XRP': 0.73368}
         }
+
+        mock_dict2 = {
+            'EUR': {'BTTC': 3418.03419, 'ETTH': 238.51941, 'XRRP': 0.4641},
+            'USD': {'BTTC': 3880.8118, 'ETTH': 270.7027, 'XRRP': 0.3368}
+        }
+
+        mock_dict3 = {
+            'EUR': {'BTCC': 3188.03419, 'ETHH': 281.51941, 'XRPP': 0.6641},
+            'USD': {'BTCC': 3804.8118, 'ETHH': 202.7027, 'XRPP': 0.78}
+        }
+
+        tracker = Crypto_tracker.CryptoTracker([''], [''], 0)
+        self.assertIsNone(tracker.init_data)
+
+        tracker.compare = MagicMock(return_value=(True, 1.1, 1.1))
+
+        # Testing case where input dict is empty
+        alarms = tracker.check_for_alarms({})
+        self.assertIsNone(tracker.init_data)
+        self.assertEqual(alarms, [])
+        self.assertFalse(alarms)
+
+        alarms = tracker.check_for_alarms(mock_dict)
+        self.assertDictEqual(tracker.init_data, mock_dict)
+        self.assertEqual(alarms, [])
+        self.assertFalse(alarms)
+
+        # Testing if further runs do not change initial value
+        for dic in (mock_dict2, mock_dict3):
+            tracker.check_for_alarms(dic)
+            self.assertIsNotNone(tracker.init_data)
+            self.assertDictEqual(tracker.init_data, mock_dict)
+
+    def test_check_for_alarms_negative(self):
+        """
+        Test to see if function return correct response with mocked function compare return None or False
+        class: CryptoTracker
+        method: check_for_alarms
+        """
+
+        mock_init_dict = {
+            'EUR': {'BTC': 34188.03419, 'ETH': 2381.51941, 'XRP': 0.64641},
+            'USD': {'BTC': 38804.8118, 'ETH': 2702.7027, 'XRP': 0.73368}
+        }
+
+        mock_dict = {
+            'EUR': {'BTC': 1, 'ETH': 2, 'XRP': 3},
+            'USD': {'BTC': 4, 'ETH': 5, 'XRP': 6}
+        }
+
+        tracker = Crypto_tracker.CryptoTracker([''], [''], 0)
+        tracker.init_data = mock_init_dict
+
+        tracker.compare = MagicMock(return_value=(None, 1.1, 1.1))
+
+        alarms = tracker.check_for_alarms(mock_dict)
+        self.assertEqual(alarms, [])
+
+        tracker.compare = MagicMock(return_value=(False, 1.2, 1.2))
+
+        alarms = tracker.check_for_alarms(mock_dict)
+        self.assertEqual(alarms, [])
+
+    def test_check_for_alarms_positive(self):
+        """
+        Test to see if function return correct response with positive scenario, where alarms are raised
+        class: CryptoTracker
+        method: check_for_alarms
+        """
+
+        mock_init_dict = {
+            'EUR': {'BTC': 34188.03419, 'ETH': 2381.51941, 'XRP': 0.64641},
+            'USD': {'BTC': 38804.8118, 'ETH': 2702.7027, 'XRP': 0.73368}
+        }
+
+        mock_dict = {
+            'EUR': {'BTC': 1.1, 'ETH': 2.1, 'XRP': 3.1},
+            'USD': {'BTC': 4.1, 'ETH': 5.1, 'XRP': 6.1}
+        }
+
+        tracker = Crypto_tracker.CryptoTracker([''], [''], 0)
+        tracker.init_data = mock_init_dict
+
+        tracker.compare = MagicMock(return_value=(True, 1.1, 1.1))
+        alarms = tracker.check_for_alarms(mock_dict)
+        self.assertEqual(len(alarms), 6)
+        for alarm in alarms:
+            self.assertIsInstance(alarm, Crypto_tracker.Alarm)
+            self.assertIsInstance(alarm.crypto_name, str)
+            self.assertIsInstance(alarm.currency, str)
+            self.assertIsInstance(alarm.current_value, float)
+            self.assertIsInstance(alarm.initial_value, float)
+            self.assertIsInstance(alarm.deviation, float)
+
+    def test_check_for_alarms_mixed(self):
+        """
+        Test to see if function return correct response with mixed (true, false, none) scenario, where alarms are raised
+        class: CryptoTracker
+        method: check_for_alarms
+        """
+
+        mock_init_dict = {
+            'EUR': {'BTC': 34188.03419, 'ETH': 2381.51941, 'XRP': 0.64641},
+            'USD': {'BTC': 38804.8118, 'ETH': 2702.7027, 'XRP': 0.73368}
+        }
+
+        mock_dict = {
+            'EUR': {'BTC': 1.1, 'ETH': 2.1, 'XRP': 3.1},
+            'USD': {'BTC': 4.1, 'ETH': 5.1, 'XRP': 6.1}
+        }
+
+        mock_compare_returns = (
+            {'over_threshold': True, 'reference_value': 22, 'value_change': 12},
+            {'over_threshold': False, 'reference_value': 1, 'value_change': 1},
+            {'over_threshold': True, 'reference_value': 786.2, 'value_change': 13.88},
+            {'over_threshold': False, 'reference_value': 1, 'value_change': 1},
+            {'over_threshold': None, 'reference_value': 2, 'value_change': 2},
+            {'over_threshold': True, 'reference_value': 1222, 'value_change': -19.99},
+        )
+
+        # tracker = Crypto_tracker.CryptoTracker([''], [''], 0)
+        # tracker.init_data = mock_init_dict
+        #
+        # for compare_mock in mock_compare_returns:
+        #     tracker.compare = MagicMock(
+        #         return_value=(
+        #             compare_mock['over_threshold'],
+        #             compare_mock['reference_value'],
+        #             compare_mock['value_change']
+        #         )
+        #     )
+        #     alarms = tracker.check_for_alarms(mock_dict)
+        #     self.assertEqual(len(alarms), 6)
+        #     for alarm in alarms:
+        #         self.assertIsInstance(alarm, Crypto_tracker.Alarm)
+        #         self.assertIsInstance(alarm.crypto_name, str)
+        #         self.assertIsInstance(alarm.currency, str)
+        #         self.assertIsInstance(alarm.current_value, float)
+        #         self.assertIsInstance(alarm.initial_value, float)
+        #         self.assertIsInstance(alarm.deviation, float)
+
 
     def test_compare_initial(self):
         """

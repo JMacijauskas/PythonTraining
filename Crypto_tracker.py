@@ -97,11 +97,10 @@ class CryptoTracker:
             return {}
         if response.json().get('Response') == "Error":
             raise ValueError(f"False URL or it's parameters: {self.crypt_endpoint}")
-        else:
-            changed_resp = self.parse_values(response.json())
-            logging.info('Crypto coin data was received.')
-            logging.debug(changed_resp)
-            return changed_resp
+        changed_resp = self.parse_values(response.json())
+        logging.info('Crypto coin data was received.')
+        logging.debug(changed_resp)
+        return changed_resp
 
     @staticmethod
     def coin_for_currency_to_coin_value(coins_per_currency: float) -> float:
@@ -115,6 +114,8 @@ class CryptoTracker:
 
     def check_for_alarms(self, json_dict: dict) -> list[Alarm]:
         alarm_list = []
+        if not json_dict:
+            return alarm_list
         if self.init_data is None:
             self.init_data = json_dict
         else:
@@ -122,7 +123,7 @@ class CryptoTracker:
                 for coins in json_dict[currency]:
                     value = json_dict[currency][coins]
                     over_threshold, reference_value, value_change = self.compare(value, coins, currency)
-                    if over_threshold is not None:
+                    if over_threshold is True:
                         alarm_list.append(Alarm(coins, currency, value, reference_value, value_change))
         logging.debug(f'Detected alarms: {alarm_list}')
         return alarm_list
