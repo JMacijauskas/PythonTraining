@@ -1,7 +1,9 @@
 import typing
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch, call
 import requests
+import twilio.rest
+
 import Crypto_tracker
 
 
@@ -127,7 +129,7 @@ class TestCryptotracker(unittest.TestCase):
             tracker.get_crypto_data()
         self.assertEqual(str(err.exception), 'False dictionary')
 
-    def test_get_crypto_data_error_path(self):
+    def test_get_crypto_data_no_wrong_request(self):
         """
         Testing if errors raised by requests.get function are handled
         class: CryptoTracker
@@ -140,7 +142,7 @@ class TestCryptotracker(unittest.TestCase):
         resp2 = tracker.get_crypto_data()
         self.assertDictEqual(resp2, {})
 
-    def test_get_crypto_data_error_path2(self):
+    def test_get_crypto_wrong_request_parameters(self):
         """
         Testing if responses with error indication are handled
         class: CryptoTracker
@@ -481,7 +483,7 @@ class TestCryptotracker(unittest.TestCase):
         self.assertEqual(new_generator.__next__(), str_out)
         self.assertRaises(StopIteration, new_generator.__next__)
 
-    def test_quantify_below_at_limit(self):
+    def test_quantify_at_limit(self):
         """
         Test to if function correctly returns string with length equal to limit
         class: Sender
@@ -502,7 +504,7 @@ class TestCryptotracker(unittest.TestCase):
         self.assertEqual(new_generator.__next__(), str_out)
         self.assertRaises(StopIteration, new_generator.__next__)
 
-    def test_quantify_below_over_limit(self):
+    def test_quantify_over_limit(self):
         """
         Test to if function correctly returns string with length equal to limit
         class: Sender
@@ -511,8 +513,6 @@ class TestCryptotracker(unittest.TestCase):
 
         str_inp = ('Some text expression', 'some', 'symols', '!@#$', '..,)', '\nsome\nlines\nto\nsee', '123987')
         str_inp_generator = (x for x in str_inp)
-
-        str_out = '\n' + '\n'.join(str_inp)
 
         expected_output_parts = (
             '',
@@ -534,6 +534,76 @@ class TestCryptotracker(unittest.TestCase):
             message_iter = new_generator.__next__()
             self.assertEqual(message_iter, output)
         self.assertRaises(StopIteration, new_generator.__next__)
+
+    @patch.object(twilio.rest.Client, 'messages')
+    def test_sending_message_send_short(self, mock_messages):
+        """
+        Test to if function correctly calls twilio API with short alarm list
+        class: Sender
+        method: sending
+        """
+
+        sample_inp = [
+            Crypto_tracker.Alarm('BTC', 'EUR', -1, -1, -1),
+            Crypto_tracker.Alarm('XRP', 'EUR', 1, 1, 1),
+            Crypto_tracker.Alarm('XRP', 'USD', 2, 2, 2),
+            Crypto_tracker.Alarm('BTC', 'EUR', 3, 3, 3),
+            Crypto_tracker.Alarm('XRP', 'EUR', 4, 5, 5),
+            Crypto_tracker.Alarm('XRP', 'USD', 5, 5, 5)
+        ]
+
+        output = '\n' + '\n'.join([str(x) for x in sample_inp])
+
+        mock_twil_num = '+112'
+        mock_user_num = '+118'
+
+        mock_send = MagicMock()
+        mock_messages.create = mock_send
+
+        sender = Crypto_tracker.Sender(True)
+        sender.num_twill = mock_twil_num
+        sender.user_number = mock_user_num
+
+        sender.sending(sample_inp)
+        mock_send.assert_called_once_with(body=f'{output}', from_=f'{mock_twil_num}', to=f'{mock_user_num}')
+
+    @patch.object(twilio.rest.Client, 'messages')
+    def test_sending_message_send_long(self, mock_messages):
+        """
+        Test to if function correctly calls twilio API with short alarm list
+        class: Sender
+        method: sending
+        """
+
+        sample_inp = [
+            Crypto_tracker.Alarm('BTC', 'EUR', 1, 1, 1),
+            Crypto_tracker.Alarm('XRP', 'EUR', 2, 2, 2),
+        ]
+
+        output1 = '\n' + str(sample_inp[0])
+        output2 = str(sample_inp[1])
+
+        mock_twil_num = '+112'
+        mock_user_num = '+118'
+        mock_message_lim = 50
+
+        calls = [
+            call(body=f'{x}', from_=f'{mock_twil_num}', to=f'{mock_user_num}')
+            for x in (output1, output2)
+        ]
+
+        mock_send = MagicMock()
+        mock_messages.create = mock_send
+
+        sender = Crypto_tracker.Sender(True)
+        sender.num_twill = mock_twil_num
+        sender.user_number = mock_user_num
+        sender.message_lim = mock_message_lim
+
+        sender.sending(sample_inp)
+        self.assertEqual(mock_send.call_count, 2)
+        # mock_send.assert_has_calls(calls)
+        # mock_send.assert_called_with(body=f'{output}', from_=f'{mock_twil_num}', to=f'{mock_user_num}')
 
     def compare_output_helper(self, currenc, coin_name, threshold):
         mock_init_data = {
