@@ -168,7 +168,7 @@ class Sender:
             else:
                 logging.info(f'SMS was sent with identification code: {message_sent.sid}')
 
-    def quantify(self, alarms: Generator[str, None, None]) -> Generator[str, None, None]:
+    def quantify(self, alarms: Iterable[str]) -> Generator[str, None, None]:
         full_message = ''
         for alarm in alarms:
             if len(alarm) + len(full_message) < self.message_lim:
