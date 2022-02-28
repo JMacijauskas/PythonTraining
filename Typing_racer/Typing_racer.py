@@ -1,7 +1,10 @@
 import datetime
 import time
 import sys
+
+import PySide2.QtCore
 from PySide2.QtWidgets import QLineEdit, QPushButton, QApplication, QVBoxLayout, QDialog, QTextEdit
+from PyQt5.QtCore import QTimer
 
 """
 display set text
@@ -17,13 +20,27 @@ return results (time diff, word count)
 class Form(QDialog):
     def __init__(self, samp_text, parent=None):
         super(Form, self).__init__(parent)
+        self.start_time = 0
+        self.end_time = 0
+
         self.setWindowTitle("Typing racer")
+
         # widgets
         self.sample_text = QTextEdit(samp_text)
         self.sample_text.setReadOnly(True)
-        self.edit = QLineEdit()
+        self.edit = QTextEdit()
+        self.edit.setCursor()
         self.button_sub = QPushButton("Submit")
-        self.button_st = QPushButton("Start")
+        self.button_sub.setDisabled(True)
+        self.button_st = QPushButton("Start", self)
+        self.button_st.setUpdatesEnabled(True)
+
+        self.timer_qt = QTimer()
+        self.timer_qt.setInterval(1000)
+        self.timer_qt.setSingleShot(True)
+
+        # self.type_timer = QTimer()
+
         # Create layout and add widgets
         layout = QVBoxLayout()
         layout.addWidget(self.button_st)
@@ -33,17 +50,37 @@ class Form(QDialog):
 
         # Set dialog layout
         self.setLayout(layout)
+
         # Add button signal to greetings slot
-        self.wtf = self.button_sub.clicked.connect(self.submit)
-        print(self.wtf)
+        self.button_st.clicked.connect(self.start)
+        self.button_sub.clicked.connect(self.submit)
 
     # Greets the user
     def submit(self):
-        return 'ok'
+        self.end_time = datetime.datetime.now()
+
+    def start(self):
+        for sec in counter(3):
+            # self.timer_qt.timeout.connect()
+            # print('what?')
+            self.button_st.setText(f'Starting in {sec}...')
+            print('what?')
+
+            # self.button_st.update()
+            # timer_qt.start()
+
+        self.start_time = datetime.datetime.now()
+        self.button_st.setDisabled(True)
+        self.button_sub.setDisabled(False)
+        # self.edit.setAutoDefault(True)
+
+    # def update_button_text(self, secs):
+    #     self.button_st.setText(f'Starting in {secs}...')
 
 
 def counter(time_wait):
     for sec in range(time_wait + 1):
+        yield time_wait - sec
         time.sleep(1)
 
 
@@ -59,6 +96,10 @@ def run(text):
     else:
         print('Input text does not match the given text')
     print(f'Time taken {time_diff.seconds},{time_diff.microseconds} s')
+
+
+def split_text(text):
+    text.split(' ')
 
 
 text_sample = ('There are only two ways to live your life. One is as though nothing is a miracle.'
