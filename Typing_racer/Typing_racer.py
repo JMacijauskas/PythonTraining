@@ -1,10 +1,9 @@
 import datetime
 import time
 import sys
-
-import PySide2.QtCore
-from PySide2.QtWidgets import QLineEdit, QPushButton, QApplication, QVBoxLayout, QDialog, QTextEdit
-from PyQt5.QtCore import QTimer
+from PySide2.QtWidgets import QPushButton, QApplication, QVBoxLayout, QDialog, QTextEdit
+from PySide2.QtGui import QTextCharFormat, QTextCursor, QBrush
+from PyQt5.QtCore import QTimer, Qt
 
 """
 display set text
@@ -27,14 +26,42 @@ class Form(QDialog):
 
         # widgets
         self.sample_text = QTextEdit(samp_text)
+
+        self.edit_cursor2 = QTextCursor()
+        self.highlight_format2 = QTextCharFormat()
+        self.highlight_brush2 = QBrush()
+        self.highlight_color2 = Qt.red
+        self.highlight_brush2.setColor(self.highlight_color2)
+        self.highlight_format2.setBackground(self.highlight_brush2)
+        #
+        self.edit_cursor2.setCharFormat(self.highlight_format2)
+        # self.sample_text.setTextCursor(self.edit_cursor2)
+        # self.edit_cursor2.setPosition(3)
+        # self.edit_cursor2.setPosition(7, QTextCursor.KeepAnchor)
+
         self.sample_text.setReadOnly(True)
+        self.sample_text.setDisabled(True)
+
         self.edit = QTextEdit()
-        self.edit.setCursor()
+        self.edit.setDisabled(True)
+
+        # Cursor and it's format
+        self.edit_cursor = QTextCursor()
+        self.highlight_format = QTextCharFormat()
+        self.edit_cursor.setCharFormat(self.highlight_format)
+        self.highlight_brush = QBrush()
+        self.highlight_color = Qt.red
+        # self.highlight_color.red()
+        self.highlight_brush.setColor(self.highlight_color)
+        self.highlight_format.setBackground(self.highlight_brush)
+
         self.button_sub = QPushButton("Submit")
         self.button_sub.setDisabled(True)
+
         self.button_st = QPushButton("Start", self)
         self.button_st.setUpdatesEnabled(True)
 
+        # Qt specific tools
         self.timer_qt = QTimer()
         self.timer_qt.setInterval(1000)
         self.timer_qt.setSingleShot(True)
@@ -55,27 +82,37 @@ class Form(QDialog):
         self.button_st.clicked.connect(self.start)
         self.button_sub.clicked.connect(self.submit)
 
-    # Greets the user
+        # Add text change signal for
+        self.edit.textChanged.connect(self.check_text_with_change)
+
+    # Submits the result
     def submit(self):
         self.end_time = datetime.datetime.now()
 
     def start(self):
-        for sec in counter(3):
-            # self.timer_qt.timeout.connect()
-            # print('what?')
+        for sec in counter(1):
             self.button_st.setText(f'Starting in {sec}...')
-            print('what?')
 
-            # self.button_st.update()
-            # timer_qt.start()
-
-        self.start_time = datetime.datetime.now()
+        # conditional state change
         self.button_st.setDisabled(True)
         self.button_sub.setDisabled(False)
-        # self.edit.setAutoDefault(True)
+        self.edit.setDisabled(False)
+        # start timer before focus is set on field (might avoid slight miliseconds error)
+        self.start_time = datetime.datetime.now()
+        self.edit.setFocus()
 
-    # def update_button_text(self, secs):
-    #     self.button_st.setText(f'Starting in {secs}...')
+    def check_text_with_change(self):
+        input_text = self.edit.toPlainText()
+        for letter_num, symbol in enumerate(input_text):
+            if symbol != text_sample[letter_num]:
+
+                # self.edit_cursor.setPosition(letter_num)
+                # self.edit_cursor.setPosition(len(input_text) - 1, QTextCursor.KeepAnchor)
+                # self.sample_text.setTextCursor(self.edit_cursor2)
+
+                return
+        if input_text == text_sample:
+            self.end_time = self.end_time = datetime.datetime.now()
 
 
 def counter(time_wait):
@@ -84,34 +121,16 @@ def counter(time_wait):
         time.sleep(1)
 
 
-def run(text):
-    print(text)
-    counter(3)
-    start_time = datetime.datetime.now()
-    user_input = input('Start:\n')
-    end_time = datetime.datetime.now()
-    time_diff = end_time - start_time
-    if user_input == text:
-        print('Correct!')
-    else:
-        print('Input text does not match the given text')
-    print(f'Time taken {time_diff.seconds},{time_diff.microseconds} s')
-
-
-def split_text(text):
-    text.split(' ')
-
-
 text_sample = ('There are only two ways to live your life. One is as though nothing is a miracle.'
                ' The other is as though everything is a miracle.')
 
 if __name__ == '__main__':
-    # run(text_sample)
-
     # Create the Qt Application
     app = QApplication(sys.argv)
+
     # Create and show the form
     form = Form(text_sample)
     form.show()
+
     # Run the main Qt loop
     sys.exit(app.exec_())
