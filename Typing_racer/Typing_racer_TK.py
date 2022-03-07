@@ -2,9 +2,25 @@ import datetime
 import time
 import tkinter as tk
 import threading
+from enum import Enum, auto
 
 message = ('There are only two ways to live your life. One is as though nothing is a miracle.'
            ' The other is as though everything is a miracle.')
+
+# TODO: enum  auto for states
+# TODO: improve time counter
+# TODO: fix threads active
+# TODO: add space separation fro initial text
+# TODO: Add teardown for new cycle
+# TODO: Add statistics
+# TODO: add super classes
+
+
+class RacerStates(Enum):
+    STARTED = auto()
+    RUNNING = auto()
+    FINISHED = auto()
+    CANCELLED = auto()
 
 
 class TypingRacer:
@@ -15,6 +31,7 @@ class TypingRacer:
         self.running = False
         self.ui = kinter
         self.sample_text = text
+        self.sample_words = text.split(' ')
         self.start_time = datetime.datetime.now()
         self.end_time = datetime.datetime.now()
 
@@ -27,10 +44,7 @@ class TypingRacer:
         self.mins_field = tk.Entry(self.ui, textvariable=self.mins, width=2, font='Helvetica 14')
         self.mins_field.pack(expand=True)
         self.mins.set('00')
-        self.hrs = tk.StringVar()
-        self.hrs_field = tk.Entry(self.ui, textvariable=self.hrs, width=2, font='Helvetica 14')
-        self.hrs_field.pack(expand=True)
-        self.hrs.set('00')
+
         # Tkinter main dialog config
         self.ui.title('Typing Racer')
         self.ui.geometry('600x400')
@@ -52,7 +66,7 @@ class TypingRacer:
         self.ref_text_box.insert('end', self.sample_text)
         self.ref_text_box['state'] = 'disabled'
 
-        self.inp_text_box = tk.Entry(self.ui, width=150, state='disabled')
+        self.inp_text_box = tk.Entry(self.ui, width=30, state='disabled')
         self.inp_text_box.pack(expand=True)
 
         self.end_button = tk.Button(self.ui, text="End", command=self.end, width=40)
@@ -68,25 +82,25 @@ class TypingRacer:
         self.entry_chech_thread.start()
 
     def countdown_timer(self):
-        if self.running:
-            times = int(self.hrs.get()) * 3600 + int(self.mins.get()) * 60 + int(self.sec.get())
-            while times > -1:
-                minute, second = (times // 60, times % 60)
-                hour = 0
-                if minute > 60:
-                    hour, minute = (minute // 60, minute % 60)
-                self.sec.set(second)
-                self.mins.set(minute)
-                self.hrs.set(hour)
+        while True:
+            if not self.running:
+                continue
+            else:
+                times = int(int(self.mins.get()) * 60 + int(self.sec.get()))
+                while times > -1:
+                    minute, second = (times // 60, times % 60)
+                    if minute > 60:
+                        hour, minute = (minute // 60, minute % 60)
+                    self.sec.set(f'{second:02}')
+                    self.mins.set(f'{minute:02}')
 
-                # Update the time
-                self.ui.update()
-                time.sleep(1)
-                if times == 0:
-                    self.sec.set('00')
-                    self.mins.set('00')
-                    self.hrs.set('00')
-                times += 1
+                    # Update the time
+                    self.ui.update()
+                    time.sleep(1)
+                    if times == 0:
+                        self.sec.set('00')
+                        self.mins.set('00')
+                    times += 1
 
     def start(self):
         self.started = True
@@ -94,28 +108,33 @@ class TypingRacer:
     def check_text_in_thread(self):
         row_num = 1
         while True:
-            tags = self.ref_text_box.tag_names()
-            if len(tags) > 1:
-                self.ref_text_box.tag_delete(self.last_tag)
             if self.running:
-                time.sleep(0.2)
-                input_text = self.inp_text_box.get()
-                for letter_num, symbol in enumerate(input_text):
-                    if symbol != self.sample_text[letter_num]:
-                        start_tag = f'{row_num}.{letter_num}'
-                        end_tag = f'{row_num}.{len(input_text)}'
-                        tag_name = f'tag_{letter_num}'
-                        self.ref_text_box.tag_add(tag_name, start_tag, end_tag)
-                        self.ref_text_box.tag_config(tag_name, background="red", foreground="white")
-                        self.last_tag = tag_name
-                        # print(f'{letter_num}  {start_tag}  {end_tag} {self.ref_text_box.tag_names()}')
-                        break
-
-                if input_text == self.sample_text:
-                    self.end()
+                start_index = 0
+                for word in self.sample_words:
+                    time.sleep(0.2)
+                    input_text = self.inp_text_box.get()
+                    for letter_num, symbol in enumerate(input_text):
+                        if symbol != word[letter_num]:
+                            start_tag = f'{row_num}.{start_index + letter_num}'
+                            end_tag = f'{row_num}.{start_index + len(input_text)}'
+                            tag_name = f'tag_{start_tag}{end_tag}'
+                            if tag_name != self.last_tag:
+                                self.ref_text_box.tag_add(tag_name, start_tag, end_tag)
+                                self.ref_text_box.tag_config(tag_name, background="red", foreground="white")
+                                self.ref_text_box.tag_delete(self.last_tag)
+                                self.last_tag = tag_name
+                            break
+                    else:
+                        tags = self.ref_text_box.tag_names()
+                        for tag in tags:
+                            self.ref_text_box.tag_delete(tag)
+                    if input_text == word + ' ':
+                        start_index += len(word)
+                        self.inp_text_box.delete('start', 'end')
+                        # self.end()
 
     def end(self):
-        self.end_time = self.end_time = datetime.datetime.now()
+        self.end_time = datetime.datetime.now()
         self.running = False
         self.taken_time = self.end_time - self.start_time
 
@@ -132,7 +151,7 @@ class TypingRacer:
                 self.end_button['state'] = 'active'
                 self.inp_text_box['state'] = 'normal'
 
-                # # start timer before focus is set on field (might avoid slight miliseconds error)
+                # start timer before focus is set on field (might avoid slight miliseconds error)
                 self.start_time = datetime.datetime.now()
 
                 self.inp_text_box.focus_set()
