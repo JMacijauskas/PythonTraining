@@ -26,6 +26,7 @@ class RacerStates(Enum):
 
 class TypingRacer:
     def __init__(self, kinter: tk.Tk, text: str):
+        self.row_num = 1
         self.taken_time = None
         self.last_tag = ''
         self.state = RacerStates.IDLE
@@ -106,51 +107,45 @@ class TypingRacer:
         self.state = RacerStates.STARTED
 
     def check_text_in_thread(self):
-        row_num = 1
         while True:
             time.sleep(0.2)
             if self.state != RacerStates.RUNNING:
                 continue
             input_text = self.inp_text_box.get()
-            start_index = 0
+            starting_index = 0
             for word in self.sample_words:
-                time.sleep(0.2)
-                input_text = self.inp_text_box.get()
-                for letter_num, symbol in enumerate(input_text):
-                    if symbol != word[letter_num]:
-                        start_tag = f'{row_num}.{start_index + letter_num}'
-                        end_tag = f'{row_num}.{start_index + len(input_text)}'
-                        tag_name = f'tag_{start_tag}{end_tag}'
-                        if tag_name != self.last_tag:
-                            self.ref_text_box.tag_add(tag_name, start_tag, end_tag)
-                            self.ref_text_box.tag_config(tag_name, background="red", foreground="white")
-                            self.ref_text_box.tag_delete(self.last_tag)
-                            self.last_tag = tag_name
-                        break
-                else:
+                current_tag_name, tag_start, tag_end = self.detect_tag(word, input_text, starting_index)
+                if current_tag_name is '':
+                    if current_tag_name != self.last_tag:
+                        self.create_new_tag(current_tag_name, tag_start, tag_end)
                     tags = self.ref_text_box.tag_names()
                     for tag in tags:
                         self.ref_text_box.tag_delete(tag)
                 if input_text == word + ' ':
-                    start_index += len(word)
+                    starting_index += len(word)
                     self.inp_text_box.delete('start', 'end')
-                    # self.end()
+            if input_text == self.sample_text:
+                self.state = RacerStates.FINISHED
 
-    def create_tag(self, ref_text, input_text):
-        start_index = 0
-        word_list = ref_text.split(' ')
-        for word in word_list:
-            for letter_num, symbol in enumerate(input_text):
-                if letter_num + 1 > len(word):
+    def detect_tag(self, ref_word, input_text, start_index):
+        for letter_num, symbol in enumerate(input_text):
+            if symbol != ref_word[letter_num]:
+                start_tag = f'{self.row_num}.{start_index + letter_num}'
+                end_tag = f'{self.row_num}.{start_index + len(input_text)}'
+                tag_name = f'tag_{start_tag}{end_tag}'
+                print(tag_name, start_tag, end_tag)
+                return tag_name, start_tag, end_tag
+        return '', '', ''
 
-                if symbol != word[letter_num]:
-                    start_tag = f'{row_num}.{start_index + letter_num}'
-                    end_tag = f'{row_num}.{start_index + len(input_text)}'
-                    tag_name = f'tag_{start_tag}{end_tag}'
+    def create_new_tag(self, tag_name, start_tag, end_tag):
+        self.ref_text_box.tag_add(tag_name, start_tag, end_tag)
+        self.ref_text_box.tag_config(tag_name, background="red", foreground="white")
+        self.ref_text_box.tag_delete(self.last_tag)
+        self.last_tag = tag_name
 
     def end(self):
         self.end_time = datetime.datetime.now()
-        self.running = False
+        self.state = RacerStates.FINISHED
         self.taken_time = self.end_time - self.start_time
 
     def button_counter(self):
