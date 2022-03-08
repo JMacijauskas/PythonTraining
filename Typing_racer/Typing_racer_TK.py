@@ -83,25 +83,24 @@ class TypingRacer:
         self.entry_chech_thread.start()
 
     def countdown_timer(self):
-        while True:
+        while self.state != RacerStates.FINISHED:
             if self.state != RacerStates.RUNNING:
                 continue
-            else:
-                times = int(int(self.mins.get()) * 60 + int(self.sec.get()))
-                while times > -1:
-                    minute, second = (times // 60, times % 60)
-                    if minute > 60:
-                        hour, minute = (minute // 60, minute % 60)
-                    self.sec.set(f'{second:02}')
-                    self.mins.set(f'{minute:02}')
+            times = int(int(self.mins.get()) * 60 + int(self.sec.get()))
+            while times > -1:
+                minute, second = (times // 60, times % 60)
+                if minute > 60:
+                    hour, minute = (minute // 60, minute % 60)
+                self.sec.set(f'{second:02}')
+                self.mins.set(f'{minute:02}')
 
-                    # Update the time
-                    self.ui.update()
-                    time.sleep(1)
-                    if times == 0:
-                        self.sec.set('00')
-                        self.mins.set('00')
-                    times += 1
+                # Update the time
+                self.ui.update()
+                time.sleep(1)
+                if times == 0:
+                    self.sec.set('00')
+                    self.mins.set('00')
+                times += 1
 
     def start(self):
         self.state = RacerStates.STARTED
@@ -112,6 +111,7 @@ class TypingRacer:
             if self.state != RacerStates.RUNNING:
                 continue
             input_text = self.inp_text_box.get()
+            input_words = input_text.split(' ')
             starting_index = 0
             for word in self.sample_words:
                 current_tag_name, tag_start, tag_end = self.detect_tag(word, input_text, starting_index)
@@ -126,6 +126,30 @@ class TypingRacer:
                     self.inp_text_box.delete('start', 'end')
             else:
                 self.state = RacerStates.FINISHED
+
+    def get_new_errors(self, sample_words, input_words):
+        starting_index = 0
+        
+        new_display_text = []
+        for compare_w, input_w in zip(sample_words[starting_index:], input_words):
+            if compare_w == input_w:
+                # correct word, should be removed
+                starting_index += 1
+                # keep track of list of correct words
+                continue
+
+            new_display_text.append(input_w)
+            # add all remaining words correct or not to the list of new display text
+            # this is so that if a user types "incorrect correct" words the 2nd words should not be removed
+            # make sure to exit loop at the first occurance of incorrect word
+
+        # if we have correct words
+        # delete them
+        # and reinsert the new display_text
+        return new_display_text
+
+    # TODO: highlight with green all the correct words. You can use the starting index which counts the number of
+    # correct words already entered
 
     def detect_tag(self, ref_word, input_text, start_index):
         for letter_num, symbol in enumerate(input_text):
