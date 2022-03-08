@@ -106,47 +106,60 @@ class TypingRacer:
         self.state = RacerStates.STARTED
 
     def check_text_in_thread(self):
+        start_index = 0
         while True:
             time.sleep(0.2)
             if self.state != RacerStates.RUNNING:
                 continue
             input_text = self.inp_text_box.get()
             input_words = input_text.split(' ')
-            starting_index = 0
-            for word in self.sample_words:
-                current_tag_name, tag_start, tag_end = self.detect_tag(word, input_text, starting_index)
-                if current_tag_name is '':
-                    if current_tag_name != self.last_tag:
-                        self.create_new_tag(current_tag_name, tag_start, tag_end)
-                    tags = self.ref_text_box.tag_names()
-                    for tag in tags:
-                        self.ref_text_box.tag_delete(tag)
-                if input_text == word + ' ':
-                    starting_index += len(word)
-                    self.inp_text_box.delete('start', 'end')
-            else:
-                self.state = RacerStates.FINISHED
+            start_index = self.get_new_errors(self.sample_words, input_words, start_index)
+            current_tag_nam, tag_start, tag_end = self.tag_correct(start_index)
+            if current_tag_nam != self.last_tag:
+                self.create_new_tag(current_tag_nam, tag_start, tag_end, colour='green')
 
-    def get_new_errors(self, sample_words, input_words):
-        starting_index = 0
-        
+
+            # starting_index = 0
+            # for word in self.sample_words:
+            #     current_tag_name, tag_start, tag_end = self.detect_tag(word, input_text, starting_index)
+            #     if current_tag_name is '':
+            #         if current_tag_name != self.last_tag:
+            #             self.create_new_tag(current_tag_name, tag_start, tag_end)
+            #         tags = self.ref_text_box.tag_names()
+            #         for tag in tags:
+            #             self.ref_text_box.tag_delete(tag)
+            #     if input_text == word + ' ':
+            #         starting_index += len(word)
+            #         self.inp_text_box.delete('start', 'end')
+            # else:
+            #     self.state = RacerStates.FINISHED
+
+    def get_new_errors(self, sample_words, input_words, starting_index):
+        correct_words = []
         new_display_text = []
+        current_shift = 0
         for compare_w, input_w in zip(sample_words[starting_index:], input_words):
             if compare_w == input_w:
                 # correct word, should be removed
-                starting_index += 1
+                current_shift += 1
                 # keep track of list of correct words
+                correct_words.append(input_w)
                 continue
-
-            new_display_text.append(input_w)
+            else:
+                new_display_text.extend(input_words[current_shift:])
+                break
             # add all remaining words correct or not to the list of new display text
             # this is so that if a user types "incorrect correct" words the 2nd words should not be removed
             # make sure to exit loop at the first occurance of incorrect word
 
         # if we have correct words
         # delete them
-        # and reinsert the new display_text
-        return new_display_text
+        if len(correct_words) > 0:
+            self.inp_text_box.delete(0, 'end')
+            # and reinsert the new display_text
+            self.inp_text_box.insert('end', ' '.join(new_display_text))
+        starting_index = starting_index + current_shift
+        return starting_index
 
     # TODO: highlight with green all the correct words. You can use the starting index which counts the number of
     # correct words already entered
@@ -161,9 +174,16 @@ class TypingRacer:
                 return tag_name, start_tag, end_tag
         return '', '', ''
 
-    def create_new_tag(self, tag_name, start_tag, end_tag):
+    def tag_correct(self, last_word_index):
+        end_index = len(' '.join(self.sample_words[:last_word_index]))
+        start_tag = f'{self.row_num}.0'
+        end_tag = f'{self.row_num}.{end_index}'
+        tag_name = f'gd_{start_tag}{end_tag}'
+        return tag_name, start_tag, end_tag
+
+    def create_new_tag(self, tag_name, start_tag, end_tag, colour='red'):
         self.ref_text_box.tag_add(tag_name, start_tag, end_tag)
-        self.ref_text_box.tag_config(tag_name, background="red", foreground="white")
+        self.ref_text_box.tag_config(tag_name, background=colour, foreground="white")
         self.ref_text_box.tag_delete(self.last_tag)
         self.last_tag = tag_name
 
