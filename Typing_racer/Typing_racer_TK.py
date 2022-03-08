@@ -124,7 +124,7 @@ class TypingRacer:
                 if input_text == word + ' ':
                     starting_index += len(word)
                     self.inp_text_box.delete('start', 'end')
-            if input_text == self.sample_text:
+            else:
                 self.state = RacerStates.FINISHED
 
     def detect_tag(self, ref_word, input_text, start_index):
