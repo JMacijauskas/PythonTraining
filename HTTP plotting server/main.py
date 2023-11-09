@@ -1,4 +1,5 @@
 import requests
+import matplotlib
 """
 run HTTP server (socket)
 each user sends point to extend graph

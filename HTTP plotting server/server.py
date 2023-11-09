@@ -1,24 +1,24 @@
-from http import server
+import socket
 
 # class PlottingServer(server.HTTPServer):
 #use socket
 
-
-class MultiCallHandler(server.BaseHTTPRequestHandler):
-    def do_GET(self):
-        print(self.responses)
-        print(self.request)
-
-    def do_POST(self):
-        print(self.responses)
-        print(self.request)
+SOCKET_ADDRESS = 'localhost'
+SOCKET_PORT = 7789
 
 
-def run(server_class=server.ThreadingHTTPServer, handler_class=MultiCallHandler):
-    server_address = ('', 8000)
-    httpd = server_class(server_address, handler_class)
-    httpd.serve_forever()
+class SimpleServer:
+    def __init__(self):
+        self.socket = socket.socket()
+        self.socket.bind((SOCKET_ADDRESS, SOCKET_PORT))
+        self.socket.listen(5)
+
+    def run(self):
+        while True:
+            # accept connections from outside
+            (client_socket, address) = self.socket.accept()
 
 
 if __name__ == '__main__':
-    run()
+    server = SimpleServer()
+    server.run()
